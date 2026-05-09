@@ -23,7 +23,7 @@
 						></image>
 						<view v-else class="avatar-placeholder">
 							<u-icon name="account" :size="52" color="#FFFFFF"></u-icon>
-							<text class="not-login-label">未登陆</text>
+							<text class="not-login-label">未登录</text>
 						</view>
 					</view>
 					<!-- #endif -->

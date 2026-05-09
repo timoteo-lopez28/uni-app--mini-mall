@@ -123,9 +123,9 @@
 			},
 			totalPrice() {
 				const total = this.selectedItems.reduce((sum, item) => {
-					return sum + (item.price * item.number * 100) / 100
+					return sum + item.price * item.number
 				}, 0)
-				return total.toFixed(2).replace(/\.00$/, '')
+				return total.toFixed(2)
 			},
 		},
 		onLoad() {
