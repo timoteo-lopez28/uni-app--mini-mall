@@ -1,50 +1,93 @@
 <template>
-	<view class="cart">
-		<view class="blank-top"></view>
-		<view class="title">
-			购物车
-			<text></text>
-		</view>
-		<view class="title-sub">左滑可删除商品</view>
-		<page-box-empty v-if="!shippingCarInfo || shippingCarInfo.number == 0" title="您还没有挑选任何商品" sub-title="可以去看看有那些想买的～" :show-btn="true" />
-		<view v-if="shippingCarInfo" class="order">
-			<u-swipe-action :show="item.show" :index="index" 
-				v-for="(item, index) in shippingCarInfo.items" :key="index"
-				@click="click"
-				@open="open"
-				:options="options"
-			>
-				<view class="item">
-					<view class="left">
-						<image :src="item.pic" mode="aspectFill"></image>
-					</view>
-					<view class="content">
-						<view class="title u-line-2">{{ item.name }}</view>
-						<view class="type">
-							<text v-for="(item2, index2) in item.sku"
-								:key="'b' + index2">{{ item2.optionName }}:{{ item2.optionValueName }}/</text>
-							<text v-for="(item3, index3) in item.additions"
-								:key="'c' + index3">{{ item3.pname }}:{{ item3.name }}/</text>
-						</view>
-						<view class="delivery-time">
-							<u-number-box class="bjq" v-model="item.number" :index="index" :min="item.minBuyNumber" :max="item.stores" @change="numberChange"></u-number-box>
-						</view>
-					</view>
-					<view class="right">
-						<view class="price">
-							￥{{ item.price }}
-						</view>
-					</view>
-				</view>
-			</u-swipe-action>
-			<view class="total">
-				共 {{ shippingCarInfo.number }} 件商品 合计:
-				<text class="total-price">
-					￥{{ shippingCarInfo.price }}
-				</text>
+	<view class="cart-page">
+		<!-- Custom Navigation Bar -->
+		<view class="nav-bar" :style="{ paddingTop: statusBarHeight + 'px', height: navBarTotalHeight + 'px' }">
+			<view class="nav-content">
+				<text class="nav-title">购物车</text>
 			</view>
-			<view v-if="shippingCarInfo && shippingCarInfo.number > 0" class="submit">
-				<u-button type="error" @click="submit">提交订单</u-button>
+		</view>
+		<view class="nav-placeholder" :style="{ height: navBarTotalHeight + 'px' }"></view>
+
+		<!-- Sub Header -->
+		<view class="sub-header">
+			<view class="free-ship-tag">全场包邮</view>
+			<view class="manage-btn" @click="toggleManage">
+				<u-icon name="setting" :size="32" color="#666666"></u-icon>
+				<text class="manage-text">管理</text>
+			</view>
+		</view>
+
+		<!-- Cart Content -->
+		<scroll-view scroll-y class="scroll-wrap">
+			<!-- Empty State -->
+			<view v-if="!shippingCarInfo || shippingCarInfo.number === 0" class="empty-cart">
+				<text class="empty-msg">『购物车中暂无商品』</text>
+				<view class="go-shop-btn" @click="goShop">去逛逛</view>
+			</view>
+
+			<!-- Cart Items -->
+			<view v-if="shippingCarInfo && shippingCarInfo.number > 0" class="cart-list">
+				<u-swipe-action
+					v-for="(item, index) in shippingCarInfo.items"
+					:key="index"
+					:show="item.show"
+					:index="index"
+					@click="swipeClick"
+					@open="swipeOpen"
+					:options="swipeOptions"
+				>
+					<view class="cart-item">
+						<view class="item-check" @click.stop="toggleSelect(index)">
+							<view class="check-circle" :class="{ checked: item.selected }">
+								<u-icon v-if="item.selected" name="checkmark" :size="24" color="#FFFFFF"></u-icon>
+							</view>
+						</view>
+						<image :src="item.pic" mode="aspectFill" class="item-img"></image>
+						<view class="item-detail">
+							<view class="item-name u-line-2">{{ item.name }}</view>
+							<view class="item-sku">
+								<text
+									v-for="(sku, si) in item.sku"
+									:key="'s' + si"
+								>{{ sku.optionName }}:{{ sku.optionValueName }} </text>
+							</view>
+							<view class="item-bottom">
+								<text class="item-price">¥{{ item.price }}</text>
+								<u-number-box
+									class="number-box"
+									v-model="item.number"
+									:index="index"
+									:min="item.minBuyNumber"
+									:max="item.stores"
+									@change="numberChange"
+								></u-number-box>
+							</view>
+						</view>
+					</view>
+				</u-swipe-action>
+			</view>
+
+			<view class="bottom-gap"></view>
+		</scroll-view>
+
+		<!-- Fixed Bottom Bar -->
+		<view class="checkout-bar safe-area-inset-bottom">
+			<view class="select-all" @click="toggleSelectAll">
+				<view class="check-circle" :class="{ checked: isAllSelected }">
+					<u-icon v-if="isAllSelected" name="checkmark" :size="24" color="#FFFFFF"></u-icon>
+				</view>
+				<text class="select-all-text">全选</text>
+			</view>
+			<view class="total-area">
+				<text class="total-label">合计：</text>
+				<text class="total-price">¥{{ totalPrice }}</text>
+			</view>
+			<view
+				class="checkout-btn"
+				:class="{ disabled: selectedCount === 0 }"
+				@click="checkout"
+			>
+				去结算（{{ selectedCount }}）
 			</view>
 		</view>
 	</view>
@@ -54,202 +97,352 @@
 	export default {
 		data() {
 			return {
-				shippingCarInfo: undefined,
-				options: [
+				statusBarHeight: 0,
+				navBarTotalHeight: 88,
+				shippingCarInfo: null,
+				swipeOptions: [
 					{
 						text: '删除',
-						style: {
-							backgroundColor: '#dd524d'
-						}
+						style: { backgroundColor: '#E02020' }
 					}
-				]
+				],
+				isManaging: false,
 			}
 		},
-		created() {
-
+		computed: {
+			selectedItems() {
+				if (!this.shippingCarInfo || !this.shippingCarInfo.items) return []
+				return this.shippingCarInfo.items.filter(item => item.selected)
+			},
+			selectedCount() {
+				return this.selectedItems.length
+			},
+			isAllSelected() {
+				if (!this.shippingCarInfo || !this.shippingCarInfo.items || this.shippingCarInfo.items.length === 0) return false
+				return this.shippingCarInfo.items.every(item => item.selected)
+			},
+			totalPrice() {
+				const total = this.selectedItems.reduce((sum, item) => {
+					return sum + item.price * item.number
+				}, 0)
+				return total.toFixed(2)
+			},
 		},
-		mounted() {
-
-		},
-		onReady() {
-
-		},
-		onLoad(e) {
-
+		onLoad() {
+			const info = uni.getSystemInfoSync()
+			this.statusBarHeight = info.statusBarHeight || 0
+			this.navBarTotalHeight = this.statusBarHeight + 44
 		},
 		onShow() {
-			this._shippingCarInfo()
+			this.loadCart()
 		},
 		methods: {
-			async _shippingCarInfo() {
+			async loadCart() {
 				const res = await this.$api.shippingCarInfo(this.token)
-				if (res.code == 0) {
-					res.data.items.forEach(ele => {
-						ele.show = false
+				if (res.code === 0) {
+					res.data.items.forEach(item => {
+						item.show = false
+						item.selected = false
 					})
 					this.shippingCarInfo = res.data
 				} else {
-					this.shippingCarInfo = null
+					this.shippingCarInfo = { number: 0, items: [], price: 0 }
 				}
 			},
 			async numberChange(e) {
-				// console.log(e.value, e.index);
 				const item = this.shippingCarInfo.items[e.index]
 				const res = await this.$api.shippingCarInfoModifyNumber(this.token, item.key, e.value)
-				if (res.code != 0) {
-					uni.showToast({
-						title: res.msg,
-						icon: 'none'
-					})
+				if (res.code !== 0) {
+					uni.showToast({ title: res.msg, icon: 'none' })
 				} else {
-					this._shippingCarInfo()
+					this.loadCart()
 				}
 			},
-			open(index) {
-				this.shippingCarInfo.items.forEach(ele => {
-					ele.show = false
-				})
+			swipeOpen(index) {
+				this.shippingCarInfo.items.forEach(item => { item.show = false })
 				this.shippingCarInfo.items[index].show = true
 			},
-			async click(index1, index2) {
-				const item = this.shippingCarInfo.items[index1]
-				if(index2 == 0) {
-					// 删除
-					const res = await this.$api.shippingCarInfoRemoveItem(this.token, item.key)
-					this._shippingCarInfo()
+			async swipeClick(index1, index2) {
+				if (index2 === 0) {
+					const item = this.shippingCarInfo.items[index1]
+					await this.$api.shippingCarInfoRemoveItem(this.token, item.key)
+					this.loadCart()
 				}
 			},
-			submit() {
-				uni.navigateTo({
-					url: '../to-pay-order/index?mod=cart'
-				})
+			toggleSelect(index) {
+				const item = this.shippingCarInfo.items[index]
+				item.selected = !item.selected
+				this.$forceUpdate()
+			},
+			toggleSelectAll() {
+				if (!this.shippingCarInfo || !this.shippingCarInfo.items) return
+				const target = !this.isAllSelected
+				this.shippingCarInfo.items.forEach(item => { item.selected = target })
+				this.$forceUpdate()
+			},
+			toggleManage() {
+				this.isManaging = !this.isManaging
+			},
+			goShop() {
+				uni.switchTab({ url: '/pages/shop/index' })
+			},
+			checkout() {
+				if (this.selectedCount === 0) {
+					uni.showToast({ title: '请选择商品', icon: 'none' })
+					return
+				}
+				uni.navigateTo({ url: '../to-pay-order/index?mod=cart' })
 			},
 		}
 	}
 </script>
+
 <style scoped lang="scss">
-	.cart {
-
-	}
-	.blank-top {
-		height: 88rpx;
+	page {
+		background-color: #FEF8EE;
 	}
 
-	.title {
-		font-size: 90rpx;
-		margin-left: 20px;
-		color: #293539;
-		font-weight: 300;
-		position: relative;
-
-		text {
-			width: 7px;
-			height: 7px;
-			position: absolute;
-			border: 2px solid #a78845;
-			border-radius: 50%;
-		}
+	.cart-page {
+		min-height: 100vh;
+		background-color: #FEF8EE;
+		padding-bottom: 120rpx;
 	}
 
-	.title-sub {
-		margin-left: 25px;
-		color: #293539;
-		font-size: 36rpx;
-		font-weight: 300;
-	}
+	.nav-bar {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 100;
+		background-color: #FEF8EE;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
 
-	.order {
-		width: 710rpx;
-		background-color: #ffffff;
-		margin: 20rpx auto;
-		border-radius: 20rpx;
-		box-sizing: border-box;
-		padding: 20rpx;
-		font-size: 28rpx;
-		.item {
+		.nav-content {
+			height: 88rpx;
 			display: flex;
-			margin: 20rpx 0 0;
 			align-items: center;
-			.left {
-				margin-right: 20rpx;
+			padding: 0 30rpx;
+		}
 
-				image {
-					width: 200rpx;
-					height: 200rpx;
-					border-radius: 10rpx;
-				}
+		.nav-title {
+			font-size: 40rpx;
+			font-weight: bold;
+			color: #3D2B1F;
+		}
+	}
+
+	/* Sub Header */
+	.sub-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 16rpx 28rpx;
+		background-color: #FEF8EE;
+
+		.free-ship-tag {
+			background-color: #C8832A;
+			color: #FFFFFF;
+			font-size: 24rpx;
+			padding: 8rpx 24rpx;
+			border-radius: 24rpx;
+		}
+
+		.manage-btn {
+			display: flex;
+			align-items: center;
+			gap: 6rpx;
+
+			.manage-text {
+				font-size: 28rpx;
+				color: #666666;
 			}
+		}
+	}
 
-			.content {
-				flex: 1;
-				.title {
-					font-size: 28rpx;
-					line-height: 50rpx;
-				}
+	/* Scroll */
+	.scroll-wrap {
+		height: calc(100vh - var(--window-bottom, 0px) - 120rpx);
+	}
 
-				.type {
-					margin: 10rpx 0;
-					font-size: 24rpx;
-					color: $u-tips-color;
-				}
+	/* Empty State */
+	.empty-cart {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 120rpx 0;
 
-				.delivery-time {
-					color: #e5d001;
-					font-size: 24rpx;
-				}
-			}
+		.empty-msg {
+			font-size: 28rpx;
+			color: #999999;
+			margin-bottom: 40rpx;
+		}
 
-			.right {
-				margin-left: 10rpx;
-				padding-top: 20rpx;
-				text-align: right;
+		.go-shop-btn {
+			background-color: #C8832A;
+			color: #FFFFFF;
+			font-size: 28rpx;
+			padding: 16rpx 60rpx;
+			border-radius: 40rpx;
+		}
+	}
 
-				.decimal {
-					font-size: 24rpx;
-					margin-top: 4rpx;
-				}
+	/* Cart List */
+	.cart-list {
+		padding: 8rpx 0;
+	}
 
-				.number {
-					color: $u-tips-color;
-					font-size: 24rpx;
-				}
+	.cart-item {
+		display: flex;
+		align-items: center;
+		background-color: #FFFFFF;
+		margin: 8rpx 20rpx;
+		border-radius: 16rpx;
+		padding: 20rpx 16rpx;
+		box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
+
+		.item-check {
+			padding-right: 16rpx;
+			flex-shrink: 0;
+		}
+
+		.check-circle {
+			width: 44rpx;
+			height: 44rpx;
+			border-radius: 50%;
+			border: 2rpx solid #CCCCCC;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+
+			&.checked {
+				background-color: #C8832A;
+				border-color: #C8832A;
 			}
 		}
 
-		.total {
-			margin-top: 20rpx;
-			text-align: right;
-			font-size: 24rpx;
+		.item-img {
+			width: 180rpx;
+			height: 180rpx;
+			border-radius: 10rpx;
+			flex-shrink: 0;
+			margin-right: 16rpx;
+		}
+
+		.item-detail {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-between;
+			min-height: 160rpx;
+
+			.item-name {
+				font-size: 28rpx;
+				color: #333333;
+				line-height: 1.4;
+				margin-bottom: 8rpx;
+			}
+
+			.item-sku {
+				font-size: 22rpx;
+				color: #999999;
+				margin-bottom: 8rpx;
+			}
+
+			.item-bottom {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+
+				.item-price {
+					font-size: 32rpx;
+					color: #E02020;
+					font-weight: bold;
+				}
+
+				.number-box {
+					flex-shrink: 0;
+				}
+			}
+		}
+	}
+
+	.bottom-gap {
+		height: 40rpx;
+	}
+
+	/* Checkout Bar */
+	.checkout-bar {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		height: 120rpx;
+		background-color: #FFFFFF;
+		border-top: 2rpx solid #F0E8DC;
+		display: flex;
+		align-items: center;
+		padding: 0 24rpx;
+		z-index: 99;
+
+		.select-all {
+			display: flex;
+			align-items: center;
+			gap: 12rpx;
+			margin-right: 20rpx;
+
+			.check-circle {
+				width: 44rpx;
+				height: 44rpx;
+				border-radius: 50%;
+				border: 2rpx solid #CCCCCC;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+
+				&.checked {
+					background-color: #C8832A;
+					border-color: #C8832A;
+				}
+			}
+
+			.select-all-text {
+				font-size: 28rpx;
+				color: #333333;
+			}
+		}
+
+		.total-area {
+			flex: 1;
+			display: flex;
+			align-items: baseline;
+
+			.total-label {
+				font-size: 26rpx;
+				color: #333333;
+			}
 
 			.total-price {
-				font-size: 32rpx;
+				font-size: 36rpx;
+				color: #E02020;
+				font-weight: bold;
 			}
 		}
 
-		.bottom {
-			display: flex;
-			margin-top: 40rpx;
-			padding: 0 10rpx;
-			justify-content: space-between;
-			align-items: center;
+		.checkout-btn {
+			background-color: #C8832A;
+			color: #FFFFFF;
+			font-size: 28rpx;
+			font-weight: bold;
+			padding: 20rpx 32rpx;
+			border-radius: 40rpx;
+			white-space: nowrap;
 
-			.btn {
-				line-height: 52rpx;
-				width: 160rpx;
-				border-radius: 26rpx;
-				border: 2rpx solid $u-border-color;
-				font-size: 26rpx;
-				text-align: center;
-				color: $u-type-info-dark;
-			}
-
-			.evaluate {
-				color: $u-type-warning-dark;
-				border-color: $u-type-warning-dark;
+			&.disabled {
+				background-color: #CCCCCC;
 			}
 		}
-	}
-	.submit {
-		margin-top: 64rpx;
 	}
 </style>
